@@ -1,0 +1,5 @@
+/.idea/
+/.claude/
+*.iml
+/order-service/target/*
+/user-service/target/*

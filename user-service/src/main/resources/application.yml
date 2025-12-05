@@ -1,0 +1,37 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: user-service
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Feign client configuration
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 5000
+      order-service:
+        connectTimeout: 5000
+        readTimeout: 5000
+
+# Order Service URL configuration
+# This URL is used by the @FeignClient annotation
+# When empty or not set, it will use Nacos service discovery
+# Set to a specific URL to bypass service discovery
+order-service:
+  url: http://localhost:8082
+  # For Kubernetes: url: http://order-service.svc.cluster.local
+  # For production: url: http://order-service-prod.example.com

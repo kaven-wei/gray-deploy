@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: user-service
+  cloud:
+    nacos:
+      server-addr: 10.18.6.59:8848
+      config:
+        namespace: ec7be1fc-1463-4ae6-8c0d-5b3bea5abee4
+        group: DEFAULT_GROUP
+        file-extension: yml
+        refresh-enabled: true
+      discovery:
+        namespace: ec7be1fc-1463-4ae6-8c0d-5b3bea5abee4
+        group: DEFAULT_GROUP

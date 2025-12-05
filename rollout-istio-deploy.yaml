@@ -1,0 +1,560 @@
+---
+# User Service Rollout - 用户服务金丝雀发布
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: gray-user-serivce
+  namespace: gray
+  labels:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-user-serivce
+spec:
+  replicas: 3
+  revisionHistoryLimit: 10
+  strategy:
+    canary:
+      # 金丝雀策略配置
+      steps:
+      # 第一阶段：金丝雀实例占20%
+      - setWeight: 20
+      - pause: {duration: 5m}
+      # 第二阶段：金丝雀实例占50%
+      - setWeight: 50
+      - pause: {duration: 10m}
+      # 第三阶段：金丝雀实例占80%
+      - setWeight: 80
+      - pause: {duration: 5m}
+      # 自动升级到100%
+
+      # Istio 流量路由配置
+      trafficRouting:
+        istio:
+          virtualServices:
+          - name: gray-user-serivce-vsvc
+            routes:
+            - primary
+          destinationRule:
+            name: gray-user-serivce-destrule
+            canarySubsetName: canary
+            stableSubsetName: stable
+
+      # 分析模板配置（自动化健康检查）
+      analysis:
+        startingStep: 1
+        templates:
+        - templateName: http-health-check
+        args:
+        - name: host
+          value: "gray-user-serivce-canary.gray.svc.cluster.local:8081"
+
+      canaryService: gray-user-serivce-canary
+      stableService: gray-user-serivce-stable
+
+      # 回滚配置
+      abortScaleDownDelaySeconds: 30
+
+  selector:
+    matchLabels:
+      k8s.kuboard.cn/layer: svc
+      k8s.kuboard.cn/name: gray-user-serivce
+  template:
+    metadata:
+      labels:
+        k8s.kuboard.cn/layer: svc
+        k8s.kuboard.cn/name: gray-user-serivce
+      annotations:
+        # Istio sidecar 注入
+        sidecar.istio.io/inject: "true"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    k8s.kuboard.cn/layer: svc
+                    k8s.kuboard.cn/name: gray-user-serivce
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      containers:
+      - name: user-wfl
+        image: xxx.xxx.com/gray/user-service:1.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8081
+          name: app-port
+          protocol: TCP
+        resources:
+          requests:
+            cpu: '0.1'
+            memory: 100Mi
+          limits:
+            cpu: '1'
+            memory: 1024Mi
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8081
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8081
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+        startupProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8081
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - mountPath: /app/logs
+          name: user-service-logs-volume-xjhej
+      volumes:
+      - name: user-service-logs-volume-xjhej
+        persistentVolumeClaim:
+          claimName: gray-user-service-pvc
+
+---
+# Order Service Rollout - 订单服务金丝雀发布
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: gray-order-serivce
+  namespace: gray
+  labels:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-order-serivce
+  annotations:
+    k8s.kuboard.cn/workload: gray-order-serivce
+spec:
+  replicas: 3
+  revisionHistoryLimit: 10
+  strategy:
+    canary:
+      # 金丝雀策略配置
+      steps:
+      # 第一阶段：金丝雀实例占10%
+      - setWeight: 10
+      - pause: {duration: 5m}
+      # 第二阶段：金丝雀实例占50%
+      - setWeight: 50
+      - pause: {duration: 10m}
+      # 第三阶段：金丝雀实例占80%
+      - setWeight: 80
+      - pause: {duration: 5m}
+      # 自动升级到100%
+
+      # Istio 流量路由配置
+      trafficRouting:
+        istio:
+          virtualServices:
+          - name: gray-order-serivce-vsvc
+            routes:
+            - primary
+          destinationRule:
+            name: gray-order-serivce-destrule
+            canarySubsetName: canary
+            stableSubsetName: stable
+
+      # 分析模板配置（自动化健康检查）
+      analysis:
+        startingStep: 1
+        templates:
+        - templateName: http-health-check
+        args:
+        - name: host
+          value: "gray-order-serivce-canary.gray.svc.cluster.local:8082"
+
+      canaryService: gray-order-serivce-canary
+      stableService: gray-order-serivce-stable
+
+      # 回滚配置
+      abortScaleDownDelaySeconds: 30
+
+  selector:
+    matchLabels:
+      k8s.kuboard.cn/layer: svc
+      k8s.kuboard.cn/name: gray-order-serivce
+  template:
+    metadata:
+      labels:
+        k8s.kuboard.cn/layer: svc
+        k8s.kuboard.cn/name: gray-order-serivce
+      annotations:
+        # Istio sidecar 注入
+        sidecar.istio.io/inject: "true"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    k8s.kuboard.cn/layer: svc
+                    k8s.kuboard.cn/name: gray-order-serivce
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      containers:
+      - name: order-service
+        image: xxx.xxx.com/gray/order-service:1.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8082
+          name: app-port
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8082
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8082
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        startupProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 8082
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /app/logs
+          name: order-service-logs-volume
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: order-service-logs-volume
+        persistentVolumeClaim:
+          claimName: gray-order-service-pvc
+
+---
+# User Service - 稳定版本服务
+apiVersion: v1
+kind: Service
+metadata:
+  name: gray-user-serivce-stable
+  namespace: gray
+  labels:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-user-serivce
+spec:
+  type: ClusterIP
+  ports:
+  - name: app-port
+    port: 8081
+    targetPort: 8081
+    protocol: TCP
+  selector:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-user-serivce
+
+---
+# User Service - 金丝雀版本服务
+apiVersion: v1
+kind: Service
+metadata:
+  name: gray-user-serivce-canary
+  namespace: gray
+  labels:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-user-serivce
+spec:
+  type: ClusterIP
+  ports:
+  - name: app-port
+    port: 8081
+    targetPort: 8081
+    protocol: TCP
+  selector:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-user-serivce
+
+
+---
+# Order Service - 稳定版本服务
+apiVersion: v1
+kind: Service
+metadata:
+  name: gray-order-serivce-stable
+  namespace: gray
+  labels:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-order-serivce
+spec:
+  type: ClusterIP
+  ports:
+  - name: app-port
+    port: 8082
+    targetPort: 8082
+    protocol: TCP
+  selector:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-order-serivce
+
+---
+# Order Service - 金丝雀版本服务
+apiVersion: v1
+kind: Service
+metadata:
+  name: gray-order-serivce-canary
+  namespace: gray
+  labels:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-order-serivce
+spec:
+  type: ClusterIP
+  ports:
+  - name: app-port
+    port: 8082
+    targetPort: 8082
+    protocol: TCP
+  selector:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-order-serivce
+
+
+---
+# Istio DestinationRule配置 - 用户服务
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: gray-user-serivce-destrule
+  namespace: gray
+spec:
+  host: gray-user-serivce
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 10s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+    # 熔断配置
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 30
+  subsets:
+  - name: stable
+    labels:
+      k8s.kuboard.cn/layer: svc
+      k8s.kuboard.cn/name: gray-user-serivce
+  - name: canary
+    labels:
+      k8s.kuboard.cn/layer: svc
+      k8s.kuboard.cn/name: gray-user-serivce
+
+---
+# Istio DestinationRule配置 - 订单服务
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: gray-order-serivce-destrule
+  namespace: gray
+spec:
+  host: gray-order-serivce
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 10s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 30
+  subsets:
+  - name: stable
+    labels:
+      k8s.kuboard.cn/layer: svc
+      k8s.kuboard.cn/name: gray-order-serivce
+  - name: canary
+    labels:
+      k8s.kuboard.cn/layer: svc
+      k8s.kuboard.cn/name: gray-order-serivce
+
+---
+# Istio VirtualService配置 - 用户服务
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: gray-user-serivce-vsvc
+  namespace: gray
+spec:
+  hosts:
+  - user-service.example.com
+  - gray-user-serivce
+  gateways:
+  - gray-gateway  
+  - mesh         
+  http:
+  # 优先级1: 带有 canary 标记的请求路由到金丝雀版本
+  - name: canary-header
+    match:
+    - headers:
+        x-canary:
+          exact: "true"
+    route:
+    - destination:
+        host: gray-user-serivce
+        subset: canary
+      weight: 100
+    timeout: 30s
+  # 优先级2: 主路由
+  - name: primary
+    route:
+    - destination:
+        host: gray-user-serivce
+        subset: stable
+      weight: 100
+    - destination:
+        host: gray-user-serivce
+        subset: canary
+      weight: 0
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: 5xx,connect-failure,refused-stream
+
+---
+# Istio VirtualService配置 - 订单服务
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: gray-order-serivce-vsvc
+  namespace: gray
+spec:
+  hosts:
+  - order-service.example.com
+  - gray-order-serivce
+  gateways:
+  - gray-gateway  
+  - mesh          
+  http:
+  # 优先级1: 带有 canary 标记的请求路由到金丝雀版本
+  - name: canary-header
+    match:
+    - headers:
+        x-canary:
+          exact: "true"
+    route:
+    - destination:
+        host: gray-order-serivce
+        subset: canary
+      weight: 100
+    timeout: 30s
+  # 优先级2: 主路由 
+  - name: primary
+    route:
+    - destination:
+        host: gray-order-serivce
+        subset: stable
+      weight: 100
+    - destination:
+        host: gray-order-serivce
+        subset: canary
+      weight: 0
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: 5xx,connect-failure,refused-stream
+
+---
+# 分析模板 - HTTP健康检查（使用 Web Analysis）
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: http-health-check
+  namespace: gray
+spec:
+  args:
+  - name: host
+  metrics:
+  - name: http-health
+    interval: 30s
+    count: 3
+    successCondition: result.status == "UP"
+    failureLimit: 2
+    provider:
+      web:
+        url: "http://{{args.host}}/actuator/health"
+        method: GET
+        timeoutSeconds: 10
+        headers:
+        - key: Accept
+          value: application/json
+
+---
+# PodDisruptionBudget - 用户服务
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gray-user-serivce-pdb
+  namespace: gray
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      k8s.kuboard.cn/layer: svc
+      k8s.kuboard.cn/name: gray-user-serivce
+
+---
+# PodDisruptionBudget - 订单服务
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gray-order-serivce-pdb
+  namespace: gray
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      k8s.kuboard.cn/layer: svc
+      k8s.kuboard.cn/name: gray-order-serivce

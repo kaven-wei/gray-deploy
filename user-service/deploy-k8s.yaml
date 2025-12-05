@@ -1,0 +1,102 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  labels:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-user-serivce
+  name: gray-user-serivce
+  namespace: gray
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      k8s.kuboard.cn/layer: svc
+      k8s.kuboard.cn/name: gray-user-serivce
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        k8s.kuboard.cn/layer: svc
+        k8s.kuboard.cn/name: gray-user-serivce
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    k8s.kuboard.cn/layer: svc
+                    k8s.kuboard.cn/name: gray-user-serivce
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      containers:
+        - image: 'xxx.xxx.com/gray/user-service:1.0.0'
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+          name: user-wfl
+          ports:
+            - containerPort: 8081
+              name: app-port
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8081
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: '1'
+              memory: 1024Mi
+            requests:
+              cpu: '0.1'
+              memory: 100Mi
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - mountPath: /app/logs
+              name: user-service-logs-volume
+      initContainers: []
+      volumes:
+        - name: user-service-logs-volume
+          persistentVolumeClaim:
+            claimName: gray-user-service-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  labels:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-user-serivce
+  name: gray-user-serivce
+  namespace: gray
+spec:
+  ports:
+    - name: app-port
+      port: 8081
+      protocol: TCP
+      targetPort: 8081
+  selector:
+    k8s.kuboard.cn/layer: svc
+    k8s.kuboard.cn/name: gray-user-serivce
+  sessionAffinity: None
+  type: ClusterIP
+
